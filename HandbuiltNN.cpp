@@ -10,6 +10,9 @@
 
 typedef std::vector<float> FLTARY;
 
+const int MAXEXP = 80;
+
+
 template<typename _IS>
 void LoadData(_IS &inStream, uint32_t *pImgRows, uint32_t *pImgCols,
               std::vector<FLTARY> &trainImages, FLTARY &trainLabels,
@@ -134,7 +137,7 @@ public:
         outData.resize(inData.size());
         _grads.resize(inData.size());
         for (uint32_t i = 0; i < inData.size(); i++) {
-            if (inData[i] < -80) {
+            if (inData[i] < -MAXEXP) {
                 outData[i] = 0.0f;
             } else {
                 auto fExp = std::exp(-inData[i]);
@@ -148,6 +151,62 @@ public:
     void Backward(const FLTARY &topGrads, FLTARY &bottomGrads) {
         bottomGrads.resize(topGrads.size());
         for (uint32_t i = 0; i < topGrads.size(); i++) {
+            bottomGrads[i] = topGrads[i] * _grads[i];
+        }
+    }
+};
+
+class Tanh {
+public:
+    FLTARY _grads;
+
+    void Forward(const FLTARY &inData, FLTARY &outData)
+    {
+        outData.resize(inData.size(), 0);
+        _grads.resize(inData.size(), 0);
+        for (uint32_t i = 0; i < inData.size(); i++) {
+            if (inData[i] < -(MAXEXP / 2.0f)) {
+                outData[i] = 0.0f;
+            } else {
+                auto fExp = std::exp(-2.0f * inData[i]);
+                auto fTmp = 1.0f + fExp;
+                outData[i] = 2.0f / fTmp - 1;
+                _grads[i] = 4.0f * fExp / (fTmp * fTmp);
+            }
+        }
+    }
+
+    void Backward(const FLTARY &topGrads, FLTARY &bottomGrads)
+    {
+        bottomGrads.resize(topGrads.size());
+        for (uint32_t i = 0; i < topGrads.size(); i ++) {
+            bottomGrads[i] = topGrads[i] * _grads[i];
+        }
+    }
+};
+
+class ReLU {
+public:
+    FLTARY _grads;
+
+    void Forward(const FLTARY &inData, FLTARY &outData)
+    {
+        outData.resize(inData.size());
+        _grads.resize(inData.size());
+        for (uint32_t i = 0; i < inData.size(); i++) {
+            if (inData[i] <= 0) {
+                outData[i] = 0.0f;
+            } else {
+                outData[i] = inData[i];
+                _grads[i] = 1.0f;
+            }
+        }
+    }
+
+    void Backward(const FLTARY &topGrads, FLTARY &bottomGrads)
+    {
+        bottomGrads.resize(topGrads.size());
+        for (uint32_t i = 0; i < topGrads.size(); i ++) {
             bottomGrads[i] = topGrads[i] * _grads[i];
         }
     }
@@ -199,8 +258,9 @@ int main(int nArgCnt, char *ppArgs[]) {
     fc1Grads.resize(fc1In, 0);
     fc2Grads.resize(fc2In, 0);
     actGrads.resize(fc2In, 0);
+    uint32_t iter;
 
-    for (uint32_t iter = 0; iter < maxIter && timeFlag; ++iter) {
+    for (iter = 0; iter < maxIter && timeFlag; ++iter) {
         for (uint32_t iImg = 0; iImg < trainImgs.size() && timeFlag; iImg += nBatchSize) {
 
             std::fill(fc1WeightsGrads.begin(), fc1WeightsGrads.end(), 0.0f);
@@ -228,7 +288,7 @@ int main(int nArgCnt, char *ppArgs[]) {
                 nCorrected += (nPred == trainLabels[iImg]);
             }
 
-//            std::cout << "loss = " << fLossSum / (float)nBatchSize << "\tprecision = " << nCorrected / (float) nBatchSize << std::endl;
+            std::cout << "loss = " << fLossSum / (float)nBatchSize << "\tprecision = " << nCorrected / (float) nBatchSize << std::endl;
 
             fc1.Update(fc1WeightsGrads, fc1BiasGrads, lr / nBatchSize);
             fc2.Update(fc2WeightsGrads, fc2BiasGrads, lr / nBatchSize);
@@ -262,7 +322,7 @@ int main(int nArgCnt, char *ppArgs[]) {
     std::cout << "[test] " << "loss = " << fLossSum / testImgs.size() << " accuracy = "
          << (float) nCorrected / testImgs.size() << std::endl;
 
-    std::cout << "Duration: " << (clock() - start) / (double) CLOCKS_PER_SEC << "s " << "for " << maxIter
+    std::cout << "Duration: " << (clock() - start) / (double) CLOCKS_PER_SEC << "s " << "for " << iter
          << " times durations" << std::endl;
 
     // submit
