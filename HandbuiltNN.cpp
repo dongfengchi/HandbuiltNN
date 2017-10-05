@@ -48,7 +48,7 @@ public:
     FLTARY _bias;
     FLTARY _inData;
 
-    template<class _Gen>
+    template<typename _Gen>
     void Initialize(uint32_t nInSize, uint32_t nOutSize, _Gen gen)
     {
         _weights.resize(nInSize * nOutSize);
@@ -61,14 +61,24 @@ public:
     void Update(const FLTARY &weightsGrad, const FLTARY &biasGrad, float lr)
     {
         uint32_t nInSize = _weights.size() / _bias.size();
+        std::cout << "weightsGrad:\t";
+        for (uint32_t i = 0; i < weightsGrad.size(); i++) {
+            std::cout << weightsGrad[i] << " ";
+        }
+        std::cout << std::endl;
         for (uint32_t j = 0; j < _bias.size(); ++j)
         {
-            for (uint32_t i = 0; i < _weights.size(); ++i)
+            for (uint32_t i = 0; i < nInSize; ++i)
             {
-                _weights[j * nInSize + i] = lr * weightsGrad[j * nInSize + i];
+                _weights[j * nInSize + i] -= lr * weightsGrad[j * nInSize + i];
             }
-            _bias[j] = lr * biasGrad[j];
+            _bias[j] -= lr * biasGrad[j];
         }
+        std::cout << "weights new:\t";
+        for (uint32_t i = 0; i < _weights.size(); i++) {
+            std::cout << _weights[i] << " ";
+        }
+        std::cout << std::endl;
     }
 
     void Forward(const FLTARY &inData, FLTARY &outData)
@@ -77,6 +87,7 @@ public:
         _inData = inData;
         outData = _bias;
 
+//        std::cout << _bias.size() << " In FC Forward " << nInSize << std::endl;
         for (uint32_t j = 0; j < _bias.size(); ++j)
         {
             for(uint32_t i = 0; i < nInSize; ++i)
@@ -91,6 +102,10 @@ public:
     {
         uint32_t nInSize = _inData.size();
 
+
+//        std::cout << _bias.size() << " In FC Backward " << nInSize << std::endl;
+//        std::cout << topGrads.size() << " " << bottomGrads.size() << " "
+//                  << weightsGrads.size() << " " << biaGrads.size() << std::endl;
         for (uint32_t j = 0; j < _bias.size(); ++j)
         {
             for (uint32_t i = 0; i < nInSize; ++i)
@@ -114,13 +129,23 @@ public:
 
     uint32_t Forward(const FLTARY &inData, float fLabel, float* pLoss)
     {
+//        for (uint32_t i = 0; i < inData.size(); i++) {
+//            std::cout << inData[i] << " ";
+//        }
+//        std::cout << std::endl;
         auto fMax = *std::max_element(inData.begin(), inData.end());
-        FLTARY exps;
-        for (auto v : inData)
+        FLTARY exps(inData.size());
+//        exps.clear();
+//        exps.resize(inData.size());
+//        for (auto v : inData)
+        for (uint32_t i = 0; i < inData.size(); i++)
         {
-            exps.push_back(std::exp(v - fMax));
+            exps[i] = std::exp(inData[i] - fMax);
+//            exps.push_back(std::exp(v - fMax));
         }
+
         auto fSum = std::accumulate(exps.begin(), exps.end(), 0.0f);
+//        std::cout << fMax << " " << fSum << std::endl;
         for (auto &v : exps)
         {
             v /= fSum;
@@ -129,13 +154,13 @@ public:
         uint32_t nLabel = (uint32_t)(fLabel + 0.5f);
         *pLoss = -std::log(exps[nLabel]);
 
-        _grads.resize(inData.size());
+        _grads.resize(inData.size(),0);
         for (uint32_t i = 0; i < inData.size(); ++i)
         {
             _grads[i] = exps[i] - (i == nLabel);
         }
 
-        return std::max_element(exps.begin(), exps.end()) - exps.begin();
+        return (std::max_element(exps.begin(), exps.end()) - exps.begin());
     }
 
     void Backward(FLTARY &bottomGrads)
@@ -171,7 +196,7 @@ public:
 
     void Backward(const FLTARY &topGrads, FLTARY &bottomGrads)
     {
-        bottomGrads.resize(topGrads.size());
+//        bottomGrads.resize(topGrads.size());
         for(uint32_t i = 0; i < topGrads.size(); i++)
         {
             bottomGrads[i] = _grads[i];
@@ -185,7 +210,7 @@ public:
 int main(int nArgCnt, char *ppArgs[])
 {
     uint32_t nImgRows, nImgCols;
-    uint32_t nImgArea = nImgCols * nImgRows;
+
     std::vector<FLTARY> trainImgs, testImgs;
     FLTARY trainLabels;
     //if you want to load from a file, use std::ifstream to open your file
@@ -205,7 +230,8 @@ int main(int nArgCnt, char *ppArgs[])
 
     LoadData(train_file, &nImgRows, &nImgCols, trainImgs, trainLabels, testImgs);
 //    LoadData(std::cin, &nImgRows, &nImgCols, trainImgs, trainLabels, testImgs);
-    std::cout << nImgCols << " " << nImgRows << std::endl;
+    uint32_t nImgArea = nImgCols * nImgRows;
+    std::cout << nImgCols << " " << nImgRows << " " << nImgArea << std::endl;
 
     //....
     //Do your homework here
@@ -227,29 +253,37 @@ int main(int nArgCnt, char *ppArgs[])
     uint32_t fc1In = 16;
     uint32_t fc2In = 10;
     float lr = 0.1;
+    uint32_t nBatchSize = 30;
 
     fc1.Initialize(nImgArea, fc1In, genNormRand);
     fc2.Initialize(fc1In, fc2In, genNormRand);
 
-    uint32_t nBatchSize = 64;
     FLTARY fc1Weights(fc1._weights.size()), fc1Bias(fc1._bias.size());
     FLTARY fc2Weights(fc2._weights.size()), fc2Bias(fc2._bias.size());
+
 
     for (uint32_t iter = 0; iter < 10; ++iter)
     {
         std::cout << "here" << std::endl;
-        for (uint32_t iImg = 0; iImg + nBatchSize < trainImgs.size(); iImg += nBatchSize)
+        for (uint32_t iImg = 0; iImg + nBatchSize < 5 * nBatchSize; iImg += nBatchSize)
         {
             float fLossSum = 0.0f, fLoss;
             uint32_t nCorrected = 0;
+//            std::cout << fLossSum << std::endl;
+            fc1Grads.resize(fc1In, 0);
+            fc2Grads.resize(fc2In, 0);
+            actGrads.resize(fc2In, 0);
             for (uint32_t iBatch = 0; iBatch < nBatchSize; ++iBatch)
             {
                 iImg = (iImg + 1) % trainImgs.size();
+//                std::cout << "iImg = " << iImg << std::endl;
                 fc1.Forward(trainImgs[iImg], fc1Res);
                 act.Forward(fc1Res, actRes);
                 fc2.Forward(actRes, fc2Res);
 
                 uint32_t nPred = loss.Forward(fc2Res, trainLabels[iImg], &fLoss);
+//                std::cout << trainLabels[iImg] << " " << nPred
+//                          << " fLoss=" << fLoss <<std::endl;
                 loss.Backward(lossGrads);
                 fc2.Backward(lossGrads, fc2Grads, fc2Weights, fc2Bias);
                 act.Backward(fc2Grads, actGrads);
@@ -257,13 +291,19 @@ int main(int nArgCnt, char *ppArgs[])
 
                 fLossSum += fLoss;
                 nCorrected += (nPred == trainLabels[iImg]);
-
+//                std::cout << iBatch << std::endl;
             }
-            std::cout << "loss = " << fLossSum / nBatchSize \
-                      << "\tprecision = " << nCorrected / nBatchSize;
+            std::cout << "loss = " << fLossSum / (float)nBatchSize \
+                      << "\tprecision = " << nCorrected / (float)nBatchSize \
+                      << std::endl << std::endl << std::endl;
 
-            fc1.Update(fc1Grads, fc1Bias, lr);
-            fc2.Update(fc2Grads, fc2Bias, lr);
+            fc1.Update(fc1Weights, fc1Bias, lr / nBatchSize);
+//            std::cout << "actGrads new:\t";
+//            for (uint32_t i = 0; i < actGrads.size(); i++) {
+//                std::cout << actGrads[i] << " ";
+//            }
+//            std::cout << std::endl;
+            fc2.Update(fc2Weights, fc2Bias, lr / nBatchSize);
         }
     }
 
