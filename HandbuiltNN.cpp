@@ -129,10 +129,22 @@ public:
     }
 };
 
-class Sigmoid {
+class ActiveLayer {
 public:
     FLTARY _grads;
 
+    virtual void Forward(const FLTARY &inData, FLTARY &outData) = 0;
+
+    void Backward(const FLTARY &topGrads, FLTARY &bottomGrads) {
+        bottomGrads.resize(topGrads.size());
+        for (uint32_t i = 0; i < topGrads.size(); i++) {
+            bottomGrads[i] = topGrads[i] * _grads[i];
+        }
+    }
+};
+
+class Sigmoid : public ActiveLayer {
+public:
     void Forward(const FLTARY &inData, FLTARY &outData) {
         outData.resize(inData.size());
         _grads.resize(inData.size());
@@ -147,19 +159,10 @@ public:
             }
         }
     }
-
-    void Backward(const FLTARY &topGrads, FLTARY &bottomGrads) {
-        bottomGrads.resize(topGrads.size());
-        for (uint32_t i = 0; i < topGrads.size(); i++) {
-            bottomGrads[i] = topGrads[i] * _grads[i];
-        }
-    }
 };
 
-class Tanh {
+class Tanh : public ActiveLayer {
 public:
-    FLTARY _grads;
-
     void Forward(const FLTARY &inData, FLTARY &outData)
     {
         outData.resize(inData.size(), 0);
@@ -175,20 +178,10 @@ public:
             }
         }
     }
-
-    void Backward(const FLTARY &topGrads, FLTARY &bottomGrads)
-    {
-        bottomGrads.resize(topGrads.size());
-        for (uint32_t i = 0; i < topGrads.size(); i ++) {
-            bottomGrads[i] = topGrads[i] * _grads[i];
-        }
-    }
 };
 
-class ReLU {
+class ReLU : public ActiveLayer{
 public:
-    FLTARY _grads;
-
     void Forward(const FLTARY &inData, FLTARY &outData)
     {
         outData.resize(inData.size());
@@ -200,14 +193,6 @@ public:
                 outData[i] = inData[i];
                 _grads[i] = 1.0f;
             }
-        }
-    }
-
-    void Backward(const FLTARY &topGrads, FLTARY &bottomGrads)
-    {
-        bottomGrads.resize(topGrads.size());
-        for (uint32_t i = 0; i < topGrads.size(); i ++) {
-            bottomGrads[i] = topGrads[i] * _grads[i];
         }
     }
 };
