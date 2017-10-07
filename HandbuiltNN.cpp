@@ -58,12 +58,29 @@ public:
         std::generate(_bias.begin(), _bias.end(), gen);
     }
 
+    // update in SGD
     void Update(const FLTARY &weightsGrads, const FLTARY &biasGrads, float lr) {
         uint32_t nInSize = _weights.size() / _bias.size();
         for (uint32_t j = 0; j < _bias.size(); ++j) {
             for (uint32_t i = 0; i < nInSize; ++i) {
                 _weights[j * nInSize + i] -= lr * weightsGrads[j * nInSize + i];
             }
+            _bias[j] -= lr * biasGrads[j];
+        }
+    }
+
+    // Update in SGD with momentum
+    void Update(const FLTARY &weightsGrads, const FLTARY &biasGrads,
+                FLTARY &weightsMomentum, FLTARY &biasMomentum, float lr, float momentum) {
+        uint32_t nInSize = _weights.size() / _bias.size();
+
+        for (uint32_t j = 0; j < _bias.size(); ++j) {
+            for (uint32_t i = 0; i < nInSize; ++i) {
+                weightsMomentum[j * nInSize + i] = momentum * weightsMomentum[j * nInSize + i] + lr * weightsGrads[j * nInSize + i];
+                _weights[j * nInSize + i] -= weightsMomentum[j * nInSize + i];
+            }
+//            biasMomentum[j] = momentum * biasMomentum[j] + lr * biasGrads[j];
+//            _bias[j] -= biasMomentum[j];
             _bias[j] -= lr * biasGrads[j];
         }
     }
@@ -95,94 +112,6 @@ public:
         for (uint32_t j = 0; j < _bias.size(); ++j) {
             biaGrads[j] += topGrads[j];
         }
-    }
-};
-
-class ConvLayer{
-public:
-    FLTARY _weights;
-    FLTARY _bias;
-    FLTARY _inData;
-    uint32_t _inSize, _outSize;
-    uint32_t _inWidth, _outWidth;
-    uint32_t _filterWidth;
-
-
-    template<typename _Gen>
-    uint32_t Initialize(uint32_t nInSize, uint32_t nOutSize, uint32_t nInWidth,
-                        _Gen gen, uint32_t filterWidth = 3) {
-        _inSize = nInSize;
-        _outSize = nOutSize;
-        _filterWidth = filterWidth;
-        _weights.resize(_inSize * _filterWidth * _filterWidth * _outSize);
-        _bias.resize(_outSize);
-        _inWidth = nInWidth;
-        _outWidth = _inWidth - _filterWidth + 1;
-
-        std::generate(_weights.begin(), _weights.end(), gen);
-        std::generate(_bias.begin(), _bias.end(), gen);
-
-        return _outWidth;
-    }
-
-
-    void Update(const FLTARY &weightsGrads, const FLTARY &biasGrads, float lr) {
-        // i : input size
-        // m : filter width
-        // n : filter height
-        // j : output size
-        uint32_t jCount = _filterWidth * _filterWidth * _outSize;
-        uint32_t mCount = _filterWidth * _outSize;
-        uint32_t nCount = _outSize;
-        for (uint32_t i = 0; i < _inSize; ++i) {
-            for (uint32_t m = 0; m < _filterWidth; ++m) {
-                for (uint32_t n = 0; n < _filterWidth; ++n) {
-                    for (uint32_t j = 0; j < _outSize; ++j) {
-                        _weights[j * jCount + m * mCount + n * nCount + i] -= lr * weightsGrads[j * jCount + m * mCount + n * nCount + i];
-                    }
-                }
-            }
-        }
-
-        for (uint32_t j = 0; j < _outSize; ++j) {
-            _bias[j] -= lr * biasGrads[j];
-        }
-    }
-
-    void Forward(const FLTARY &inData, FLTARY &outData) {
-        _inData = inData;
-        // j : output size
-        outData.resize(_outSize * _outWidth * _outWidth);
-
-        uint32_t jOutCount = _outWidth * _outWidth;
-        uint32_t iInCount = _inWidth * _inWidth;
-
-        uint32_t jWeightCount = _filterWidth * _filterWidth * _outSize;
-        uint32_t mWeightCount = _filterWidth * _outSize;
-        uint32_t nWeightCount = _outSize;
-
-
-        // 使用非数组的方式太难写了。。。。
-        for (uint32_t j = 0; j < _outSize; j++) {
-            for (uint32_t p = 0; p < _outWidth; p++){
-                for (uint32_t q = 0; q < _outWidth; q++){
-                    // 三层数据迭代
-                    for (uint32_t m = 0; m < _filterWidth; m++){
-                        for (uint32_t n = 0; n < _filterWidth; n++){
-                            for (uint32_t i = 0; i < _inSize; i++)
-                            outData[j * jOutCount + p * _outWidth + q] += _weights[j * jWeightCount + m * mWeightCount + n * nWeightCount + i] \
-                                    * _inData[i * iInCount + (p + m) * _inWidth  + (n + q)];
-
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    void Backward(const FLTARY &topGrads, FLTARY &bottomGrads,
-                  FLTARY &weightsGrads, FLTARY &biaGrads) {
-
     }
 };
 
@@ -296,15 +225,15 @@ int main(int nArgCnt, char *ppArgs[]) {
     //if you want to load from a file, use std::ifstream to open your file
     //	and replace the std::cin with the file object.
 
-    std::ifstream trainFileStram("/Users/fengchi/Github/HandbuiltNN/data/train_2000a.txt");
+//    std::ifstream trainFileStram("/Users/fengchi/Github/HandbuiltNN/data/train_2000a.txt");
 
-    LoadData(trainFileStram, &nImgRows, &nImgCols, trainImgs, trainLabels, testImgs);
+//    LoadData(trainFileStram, &nImgRows, &nImgCols, trainImgs, trainLabels, testImgs);
 //    LoadData(std::cin, &nImgRows, &nImgCols, trainImgs, trainLabels, testImgs);
     uint32_t nImgArea = nImgCols * nImgRows;
 
 
     FCLayer fc1, fc2;
-    Sigmoid act;
+    Tanh act;
     SoftmaxLoss loss;
 
     std::random_device rd; // random seed generator
@@ -316,10 +245,11 @@ int main(int nArgCnt, char *ppArgs[]) {
     FLTARY lossGrads, fc2Grads, actGrads, fc1Grads;
 
 
-    uint32_t fc1In = 26;
+    uint32_t fc1In = 28;
     uint32_t fc2In = 10;
-    uint32_t maxIter = 10;
-    float lr = 0.5;
+    uint32_t maxIter = 4;
+    float lr = 0.03;
+    float momentum = 0.9;
     uint32_t nBatchSize = 64;
     bool timeFlag = true;
 
@@ -328,6 +258,8 @@ int main(int nArgCnt, char *ppArgs[]) {
 
     FLTARY fc1WeightsGrads(fc1._weights.size()), fc1BiasGrads(fc1._bias.size());
     FLTARY fc2WeightsGrads(fc2._weights.size()), fc2BiasGrads(fc2._bias.size());
+    FLTARY fc1WeightsMomentum(fc1._weights.size(), 0), fc1BiasMomentum(fc1._bias.size(), 0);
+    FLTARY fc2WeightsMomentum(fc2._weights.size(), 0), fc2BiasMomentum(fc2._bias.size(), 0);
 
     fc1Grads.resize(fc1In, 0);
     fc2Grads.resize(fc2In, 0);
@@ -335,7 +267,7 @@ int main(int nArgCnt, char *ppArgs[]) {
     uint32_t iter;
 
     for (iter = 0; iter < maxIter && timeFlag; ++iter) {
-        for (uint32_t iImg = 0; iImg < trainImgs.size() && timeFlag;) {
+        for (uint32_t iImgdx = 0; iImgdx < trainImgs.size() && timeFlag; iImgdx += nBatchSize) {
 
             std::fill(fc1WeightsGrads.begin(), fc1WeightsGrads.end(), 0.0f);
             std::fill(fc2WeightsGrads.begin(), fc2WeightsGrads.end(), 0.0f);
@@ -345,8 +277,10 @@ int main(int nArgCnt, char *ppArgs[]) {
             float fLossSum = 0.0f, fLoss;
             uint32_t nCorrected = 0;
             for (uint32_t iBatch = 0; iBatch < nBatchSize && timeFlag; ++iBatch) {
-                // forward
 
+                // Random SGD
+                uint32_t iImg = rand() % trainImgs.size();
+                // forward
                 fc1.Forward(trainImgs[iImg], fc1Res);
                 act.Forward(fc1Res, actRes);
                 fc2.Forward(actRes, fc2Res);
@@ -360,15 +294,17 @@ int main(int nArgCnt, char *ppArgs[]) {
 
                 fLossSum += fLoss;
                 nCorrected += (nPred == trainLabels[iImg]);
-                iImg++;
-                if (iImg >= trainImgs.size()) break;
+//                iImg++;
+//                if (iImg >= trainImgs.size()) break;
             }
 
             std::cout << "loss = " << fLossSum / (float)nBatchSize << "\tprecision = " << nCorrected / (float) nBatchSize << std::endl;
 
-            fc1.Update(fc1WeightsGrads, fc1BiasGrads, lr / nBatchSize);
-            fc2.Update(fc2WeightsGrads, fc2BiasGrads, lr / nBatchSize);
-            if ((clock() - start) / (double) CLOCKS_PER_SEC > 3.9) {
+//            fc1.Update(fc1WeightsGrads, fc1BiasGrads, lr / nBatchSize);
+//            fc2.Update(fc2WeightsGrads, fc2BiasGrads, lr / nBatchSize);
+            fc1.Update(fc1WeightsGrads, fc1BiasGrads, fc1WeightsMomentum, fc1BiasMomentum, lr / nBatchSize, momentum);
+            fc2.Update(fc2WeightsGrads, fc2BiasGrads, fc2WeightsMomentum, fc2BiasMomentum, lr / nBatchSize, momentum);
+            if ((clock() - start) / (double) CLOCKS_PER_SEC > 3.91) {
                 timeFlag = false;
             }
         }
@@ -393,7 +329,7 @@ int main(int nArgCnt, char *ppArgs[]) {
         fLossSum += fLoss;
         uint32_t label = (uint32_t)(testLabel[i] + 0.5f);
         nCorrected += (nPred == label);
-        std::cout << nPred << std::endl;
+//        std::cout << nPred << " " << label << std::endl;
     }
     std::cout << "[test] " << "loss = " << fLossSum / testImgs.size() << " accuracy = "
          << (float) nCorrected / testImgs.size() << std::endl;
@@ -403,7 +339,7 @@ int main(int nArgCnt, char *ppArgs[]) {
 
     // submit
 //    float fLoss;
-//    for (uint32_t i = 0; i < testImgs.size(); i++) {
+//    for(uint32_t i = 0; i < testImgs.size(); i++) {
 //        fc1.Forward(testImgs[i], fc1Res);
 //        act.Forward(fc1Res, actRes);
 //        fc2.Forward(actRes, fc2Res);
