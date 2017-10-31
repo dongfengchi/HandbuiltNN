@@ -109,6 +109,7 @@ public:
             }
         }
 
+        // update bias
         for (uint32_t j = 0; j < _bias.size(); ++j) {
             biaGrads[j] += topGrads[j];
         }
@@ -225,9 +226,9 @@ int main(int nArgCnt, char *ppArgs[]) {
     //if you want to load from a file, use std::ifstream to open your file
     //	and replace the std::cin with the file object.
 
-//    std::ifstream trainFileStram("/Users/fengchi/Github/HandbuiltNN/data/train_2000a.txt");
+    std::ifstream trainFileStram("/Users/fengchi/Github/HandbuiltNN/data/train_2000a.txt");
 
-//    LoadData(trainFileStram, &nImgRows, &nImgCols, trainImgs, trainLabels, testImgs);
+    LoadData(trainFileStram, &nImgRows, &nImgCols, trainImgs, trainLabels, testImgs);
 //    LoadData(std::cin, &nImgRows, &nImgCols, trainImgs, trainLabels, testImgs);
     uint32_t nImgArea = nImgCols * nImgRows;
 
@@ -248,7 +249,7 @@ int main(int nArgCnt, char *ppArgs[]) {
     uint32_t fc1In = 28;
     uint32_t fc2In = 10;
     uint32_t maxIter = 4;
-    float lr = 0.03;
+    float lr = 0.05;
     float momentum = 0.9;
     uint32_t nBatchSize = 64;
     bool timeFlag = true;
